@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitoring Gas dan Lingkungan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #EDF0F2;
+    --panel: #FFFFFF;
+    --ink: #16202A;
+    --muted: #566370;
+    --line: #D3D9DF;
+    --ok: #1F7A6D;
+    --warn: #B9770E;
+    --bad: #C2362B;
+    --none: #6B7783;
+    --s-lpg: #2F6FD0;
+    --s-co: #8A55C7;
+    --s-suhu: #C45A86;
+    --s-rh: #1E8FB8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11171C;
+      --panel: #182027;
+      --ink: #E6ECF0;
+      --muted: #93A1AD;
+      --line: #2A343D;
+      --ok: #4FC3AE;
+      --warn: #E0A23A;
+      --bad: #F0675B;
+      --none: #93A1AD;
+      --s-lpg: #6FA3F0;
+      --s-co: #B891E8;
+      --s-suhu: #E58AB0;
+      --s-rh: #5FC0E3;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 1rem/1.5 "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 56px; }
+  h1, h2, .judul, .b-nilai {
+    font-family: "Bricolage Grotesque", "Public Sans", system-ui, sans-serif;
+  }
+  header {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px;
+  }
+  header h1 { margin: 0 0 4px; font-size: 1.5rem; line-height: 1.2; font-weight: 700; }
+  header p { margin: 0; color: var(--muted); font-size: .9rem; }
+  header nav { font-size: .9rem; margin-top: 8px; text-align: right; }
+  header nav a { color: var(--muted); }
+
+  .btn {
+    font: 600 .9rem "Public Sans", system-ui, sans-serif;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--bg);
+    cursor: pointer;
+  }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn:focus-visible { outline: 3px solid var(--s-lpg); outline-offset: 2px; }
+
+  .l0 { --accent: var(--ok); }
+  .l1 { --accent: var(--warn); }
+  .l2 { --accent: var(--bad); }
+  .lx { --accent: var(--none); }
+
+  .banner {
+    margin: 22px 0 10px;
+    padding: 20px 22px 18px;
+    background: color-mix(in srgb, var(--accent) 13%, var(--panel));
+    border-left: 8px solid var(--accent);
+    border-radius: 4px;
+  }
+  .banner .kecil { margin: 0; font-size: .85rem; color: var(--muted); }
+  .banner .judul { margin: 2px 0 4px; font-size: 2.2rem; line-height: 1.1; font-weight: 700; }
+  .banner .rinci { margin: 0; }
+  .banner .waktu { margin: 10px 0 0; font-size: .85rem; color: var(--muted); }
+
+  /* Panel notifikasi Waspada dan Bahaya */
+  .notif {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    margin: 22px 0 0;
+    padding: 14px 18px;
+    border-radius: 6px;
+    border-left: 8px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  }
+  .notif-judul { margin: 0; font-weight: 700; color: var(--accent); }
+  .notif-isi { margin: 2px 0 0; font-size: .95rem; }
+
+  #galat {
+    margin: 10px 0 0;
+    padding: 10px 14px;
+    border-left: 4px solid var(--bad);
+    background: color-mix(in srgb, var(--bad) 10%, var(--panel));
+    font-size: .9rem;
+  }
+
+  .bacaan-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 56px;
+    margin-top: 6px;
+  }
+  .bacaan { padding: 22px 0 36px; border-top: 1px solid var(--line); }
+  .b-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .b-nama { font-weight: 600; }
+  .b-status { font-size: .9rem; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; }
+  .b-status::before {
+    content: "";
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .b-nilai { margin: 6px 0 16px; font-size: 3rem; line-height: 1.05; font-weight: 700; }
+  .b-nilai small {
+    margin-left: 6px;
+    font: 500 1rem "Public Sans", system-ui, sans-serif;
+    color: var(--muted);
+  }
+  .track { position: relative; height: 8px; border-radius: 4px; background: var(--line); }
+  .fill { height: 100%; min-width: 2px; border-radius: 4px; background: var(--accent); }
+  .tick { position: absolute; top: -4px; width: 2px; height: 16px; background: var(--ink); }
+  .tick span {
+    position: absolute; top: 19px; left: 50%;
+    transform: translateX(-50%);
+    font-size: .75rem; color: var(--muted); white-space: nowrap;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .fill { transition: width .4s ease; }
+  }
+
+  .riwayat-head {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 12px; margin: 18px 0 14px; padding-top: 22px; border-top: 1px solid var(--line);
+  }
+  .riwayat-head h2 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg button {
+    padding: 7px 14px;
+    border: 0; border-right: 1px solid var(--line);
+    background: transparent; color: var(--ink);
+    font: 500 .9rem "Public Sans", system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .seg button:focus-visible { outline: 3px solid var(--s-lpg); outline-offset: -3px; }
+
+  /* Tiga grafik: LPG dan CO berdampingan, Suhu dan Kelembapan di baris penuh */
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 32px 32px; }
+  .chart-box { position: relative; height: 260px; }
+  .chart-lebar { grid-column: 1 / -1; }
+  .chart-judul { margin: 0 0 6px; font-size: .95rem; font-weight: 600; color: var(--muted); }
+  #kosong { margin: 8px 0 0; color: var(--muted); font-size: .9rem; }
+
+  .catatan { margin: 36px 0 0; max-width: 70ch; font-size: .85rem; color: var(--muted); }
+
+  @media (max-width: 720px) {
+    .bacaan-grid, .charts { grid-template-columns: 1fr; }
+    .banner .judul { font-size: 1.8rem; }
+    .b-nilai { font-size: 2.6rem; }
+    header nav { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Monitoring Gas dan Lingkungan</h1>
+      <p>Pembacaan sensor LPG, karbon monoksida, suhu, dan kelembapan dari perangkat ESP32.</p>
+    </div>
+    <div>
+      <button id="btn-notif" class="btn" type="button">Aktifkan notifikasi</button>
+      <nav><a href="kalibrasi.html">Kalibrasi Ro →</a></nav>
+    </div>
+  </header>
+
+  <section id="notif" class="notif" role="alert" hidden>
+    <div>
+      <p class="notif-judul" id="notif-judul"></p>
+      <p class="notif-isi" id="notif-isi"></p>
+    </div>
+    <button id="notif-ack" class="btn" type="button">Sudah diketahui</button>
+  </section>
+
+  <section id="banner" class="banner lx" aria-live="polite">
+    <p class="kecil">Kondisi saat ini</p>
+    <p class="judul" id="b-judul">Memuat data</p>
+    <p class="rinci" id="b-rinci"></p>
+    <p class="waktu" id="b-waktu"></p>
+  </section>
+  <p id="galat" role="alert" hidden></p>
+
+  <section class="bacaan-grid" id="bacaan" aria-label="Pembacaan terbaru"></section>
+
+  <div class="riwayat-head">
+    <h2>Riwayat</h2>
+    <div class="seg" role="group" aria-label="Rentang waktu">
+      <button type="button" data-jam="1" aria-pressed="false">1 jam</button>
+      <button type="button" data-jam="6" aria-pressed="true">6 jam</button>
+      <button type="button" data-jam="24" aria-pressed="false">24 jam</button>
+      <button type="button" data-jam="168" aria-pressed="false">7 hari</button>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-box">
+      <p class="chart-judul">LPG (ppm)</p>
+      <canvas id="gLPG" role="img" aria-label="Grafik LPG"></canvas>
+    </div>
+    <div class="chart-box">
+      <p class="chart-judul">Karbon monoksida (ppm)</p>
+      <canvas id="gCO" role="img" aria-label="Grafik CO"></canvas>
+    </div>
+    <div class="chart-box chart-lebar">
+      <p class="chart-judul">Suhu dan kelembapan</p>
+      <canvas id="gEnv" role="img" aria-label="Grafik suhu dan kelembapan"></canvas>
+    </div>
+  </div>
+  <p id="kosong" hidden>Belum ada data pada rentang waktu ini.</p>
+
+  <p class="catatan">
+    Nilai ppm adalah perkiraan dari kurva datasheet sensor MQ. Di bawah 200 ppm untuk LPG dan 50 ppm untuk CO,
+    angkanya hasil ekstrapolasi sehingga kurang akurat. Garis putus-putus pada grafik menunjukkan ambang batas alarm.
+    Gunakan sebagai indikator tren dan peringatan.
+  </p>
+</div>
+
+<script>
+  // ====== PENGATURAN ======
+  const API_URL = "https://script.google.com/macros/s/AKfycbwG3cyl9Dujy-VgYu7cGId2_iYFQZfVGgVE-IFd0v55ENXgKXrgJ_sEAAVy99j3d5o3/exec";   // URL deployment /exec
+  const LIVE_MS = 5000;                          // perbarui nilai terbaru
+  const CHART_MS = 60000;                        // perbarui grafik
+  const STALE_MS = 5 * 60 * 1000;                // data dianggap basi jika lebih tua dari ini
+  const ULANG_BAHAYA_MS = 5000;                  // bunyi bahaya diulang sampai diakui
+
+  const BACAAN = [
+    { id: "lpg",  nama: "LPG",                    unit: "ppm", key: "mq2",  st: "sLPG",  max: 600, ticks: [200, 500] },
+    { id: "co",   nama: "Karbon monoksida (CO)",  unit: "ppm", key: "mq7",  st: "sCO",   max: 50,  ticks: [25] },
+    { id: "suhu", nama: "Suhu",                   unit: "°C",  key: "suhu", st: "sSuhu", max: 60,  ticks: [50] },
+    { id: "rh",   nama: "Kelembapan",             unit: "%",   key: "rh",   st: "sRH",   max: 100, ticks: [80] }
+  ];
+  const TEKS = ["Normal", "Waspada", "Bahaya"];
+
+  // Konfigurasi tiga grafik. "seri" adalah data sensor, "batas" adalah garis ambang alarm.
+  const GRAFIK = {
+    lpg: {
+      id: "#gLPG",
+      yLabel: "ppm",
+      seri: [{ key: "mq2", label: "LPG (ppm)", warna: "--s-lpg", axis: "y" }],
+      batas: [
+        { nilai: 200, label: "Batas waspada 200 ppm", axis: "y" },
+        { nilai: 500, label: "Batas bahaya 500 ppm", axis: "y" }
+      ]
+    },
+    co: {
+      id: "#gCO",
+      yLabel: "ppm",
+      seri: [{ key: "mq7", label: "CO (ppm)", warna: "--s-co", axis: "y" }],
+      batas: [{ nilai: 25, label: "Batas bahaya 25 ppm", axis: "y" }]
+    },
+    env: {
+      id: "#gEnv",
+      yLabel: "Suhu (°C)",
+      y1Label: "Kelembapan (%)",
+      seri: [
+        { key: "suhu", label: "Suhu (°C)", warna: "--s-suhu", axis: "y" },
+        { key: "rh",   label: "Kelembapan (%)", warna: "--s-rh", axis: "y1" }
+      ],
+      batas: [
+        { nilai: 50, label: "Batas suhu 50 °C", axis: "y" },
+        { nilai: 80, label: "Batas RH 80%", axis: "y1" }
+      ]
+    }
+  };
+
+  // Pola bunyi: [frekuensi Hz, durasi ms, jeda setelah ms]
+  const POLA_WASPADA = [[880, 300, 0]];
+  const POLA_BAHAYA  = [[1200, 250, 150], [1200, 250, 150], [1200, 250, 0]];
+
+  // ====== UTILITAS ======
+  const $ = (s) => document.querySelector(s);
+  const pad = (n) => String(n).padStart(2, "0");
+  const fmt = (v) => (v === null || v === undefined) ? "–" : Number(v).toFixed(1);
+  const jamStr = (d) => pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  function level(s) {
+    s = String(s || "").toUpperCase();
+    if (s.startsWith("BAHAYA")) return 2;
+    if (s.startsWith("WASPADA")) return 1;
+    return 0;
+  }
+
+  function umurTeks(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    if (s < 60) return s + " detik lalu";
+    if (s < 3600) return Math.floor(s / 60) + " menit lalu";
+    return Math.floor(s / 3600) + " jam lalu";
+  }
+
+  async function ambil(params) {
+    const url = API_URL + (API_URL.includes("?") ? "&" : "?") + new URLSearchParams(params);
+    const res = await fetch(url);
+    let json;
+    try { json = await res.json(); }
+    catch (e) { throw new Error("Respons bukan JSON. Pastikan akses deployment diatur ke Anyone."); }
+    if (!json.ok) throw new Error(json.pesan || "Respons tidak valid");
+    return json.rows;
+  }
+
+  function tampilGalat(pesan) {
+    const el = $("#galat");
+    el.hidden = !pesan;
+    el.textContent = pesan ? "Tidak bisa mengambil data: " + pesan : "";
+  }
+
+  // ====== NOTIFIKASI WASPADA DAN BAHAYA ======
+  const notif = {
+    aktif: false,          // pengguna sudah mengaktifkan notifikasi (suara dan browser)
+    audio: null,           // AudioContext, dibuat saat tombol ditekan
+    sebelum: {},           // alarm pada pembacaan sebelumnya: { id: { l, teks } }
+    diakui: "",            // tanda alarm yang sudah diakui pengguna
+    timerBahaya: null
+  };
+
+  function bunyi(pola) {
+    if (!notif.audio) return;
+    let t = notif.audio.currentTime;
+    pola.forEach(([f, d, j]) => {
+      const o = notif.audio.createOscillator();
+      const g = notif.audio.createGain();
+      o.type = "square";
+      o.frequency.value = f;
+      g.gain.value = 0.15;
+      o.connect(g);
+      g.connect(notif.audio.destination);
+      o.start(t);
+      o.stop(t + d / 1000);
+      t += (d + j) / 1000;
+    });
+  }
+
+  async function aktifkanNotifikasi() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC && !notif.audio) notif.audio = new AC();
+      if (notif.audio && notif.audio.state === "suspended") await notif.audio.resume();
+    } catch (e) { /* suara tidak tersedia, notifikasi visual tetap jalan */ }
+
+    if ("Notification" in window && Notification.permission === "default") {
+      try { await Notification.requestPermission(); } catch (e) {}
+    }
+
+    notif.aktif = true;
+    const b = $("#btn-notif");
+    b.textContent = "Notifikasi aktif ✓";
+    b.disabled = true;
+    bunyi(POLA_WASPADA);   // tes suara
+  }
+
+  function tanda(s) {
+    return Object.keys(s).sort().map((id) => id + ":" + s[id].l).join("|");
+  }
+
+  function clearTimerBahaya() {
+    if (notif.timerBahaya) {
+      clearInterval(notif.timerBahaya);
+      notif.timerBahaya = null;
+    }
+  }
+
+  function kirimNotifBrowser(now, maks) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const judul = "Monitoring Gas: " + (maks === 2 ? "BAHAYA" : "WASPADA");
+    const isi = Object.values(now).map((x) => x.teks).join(", ") + " melewati ambang batas.";
+    try { new Notification(judul, { body: isi, tag: "monitoring" }); } catch (e) {}
+  }
+
+  function tampilPanel(now, maks, adaBaru) {
+    const p = $("#notif");
+    const tampil = Object.keys(now).length > 0 && adaBaru;
+    p.hidden = !tampil;
+    if (!tampil) return;
+
+    p.className = "notif l" + maks;
+    $("#notif-judul").textContent = maks === 2
+      ? "BAHAYA: periksa lokasi sensor sekarang"
+      : "WASPADA: pembacaan mendekati atau melewati ambang batas";
+    $("#notif-isi").textContent = Object.values(now).map((x) => x.teks).join(" · ");
+  }
+
+  // Dipanggil setiap ada data terbaru
+  function cekNotifikasi(row) {
+    const now = {};
+    BACAAN.forEach((b) => {
+      const l = level(row[b.st]);
+      if (l > 0) now[b.id] = { l: l, teks: b.nama + " " + fmt(row[b.key]) + " " + b.unit };
+    });
+
+    // Naik tingkat atau muncul alarm baru dibanding pembacaan sebelumnya
+    const naik = Object.keys(now).some((id) => !notif.sebelum[id] || now[id].l > notif.sebelum[id].l);
+    notif.sebelum = now;
+
+    const maks = Math.max(0, ...Object.values(now).map((x) => x.l));
+    const adaBaru = Object.keys(now).length > 0 && tanda(now) !== notif.diakui;
+
+    if (naik && adaBaru) {
+      if (notif.aktif) bunyi(maks === 2 ? POLA_BAHAYA : POLA_WASPADA);
+      if (navigator.vibrate) navigator.vibrate(maks === 2 ? [300, 150, 300, 150, 300] : [300]);
+      kirimNotifBrowser(now, maks);
+    }
+
+    tampilPanel(now, maks, adaBaru);
+
+    // Bahaya diulang sampai diakui, atau sampai kondisi kembali normal
+    if (maks === 2 && adaBaru && notif.aktif) {
+      if (!notif.timerBahaya) {
+        notif.timerBahaya = setInterval(() => bunyi(POLA_BAHAYA), ULANG_BAHAYA_MS);
+      }
+    } else {
+      clearTimerBahaya();
+    }
+  }
+
+  function akuiAlarm() {
+    notif.diakui = tanda(notif.sebelum);
+    clearTimerBahaya();
+    $("#notif").hidden = true;
+  }
+
+  // ====== KERANGKA PEMBACAAN ======
+  BACAAN.forEach((b) => {
+    const el = document.createElement("div");
+    el.className = "bacaan l0";
+    el.id = "b-" + b.id;
+    el.innerHTML =
+      '<div class="b-head"><span class="b-nama">' + b.nama + '</span><span class="b-status" data-s>–</span></div>' +
+      '<div class="b-nilai"><span data-v>–</span><small>' + b.unit + '</small></div>' +
+      '<div class="track"><div class="fill" data-f style="width:0%"></div>' +
+      b.ticks.map((t) => '<div class="tick" style="left:' + (t / b.max * 100) + '%"><span>batas ' + t + '</span></div>').join("") +
+      '</div>';
+    $("#bacaan").appendChild(el);
+  });
+
+  // ====== TAMPILAN NILAI TERBARU ======
+  let barisTerakhir = null;
+
+  function tampil(row) {
+    barisTerakhir = row || null;
+    BACAAN.forEach((b) => {
+      const el = $("#b-" + b.id);
+      const v = row ? row[b.key] : null;
+      const l = row ? level(row[b.st]) : 0;
+      el.className = "bacaan l" + l;
+      el.querySelector("[data-v]").textContent = fmt(v);
+      el.querySelector("[data-s]").textContent = row ? TEKS[l] : "–";
+      const pct = (v === null || v === undefined) ? 0 : Math.min(100, Math.max(0, v) / b.max * 100);
+      el.querySelector("[data-f]").style.width = pct + "%";
+    });
+    perbaruiBanner();
+    if (row) cekNotifikasi(row);
+  }
+
+  function perbaruiBanner() {
+    const b = $("#banner"), j = $("#b-judul"), r = $("#b-rinci"), w = $("#b-waktu");
+    if (!barisTerakhir) {
+      b.className = "banner lx";
+      j.textContent = "Belum ada data";
+      r.textContent = "Menunggu kiriman data dari perangkat.";
+      w.textContent = "";
+      return;
+    }
+    const t = new Date(barisTerakhir.t);
+    const umur = Date.now() - t.getTime();
+    w.textContent = "Data terakhir masuk pukul " + jamStr(t) + ", " + umurTeks(umur) + ".";
+
+    if (umur > STALE_MS) {
+      b.className = "banner lx";
+      j.textContent = "Tidak ada data baru";
+      r.textContent = "Perangkat mungkin mati atau terputus dari WiFi.";
+      return;
+    }
+    if (String(barisTerakhir.sAlarm).toUpperCase().includes("CEK")) {
+      b.className = "banner lx";
+      j.textContent = "Periksa sensor";
+      r.textContent = "Ada sensor yang tidak terbaca dengan benar.";
+      return;
+    }
+
+    const daftar = BACAAN
+      .filter((x) => level(barisTerakhir[x.st]) > 0)
+      .map((x) => x.nama + " " + fmt(barisTerakhir[x.key]) + " " + x.unit);
+    const l = Math.max(level(barisTerakhir.sAlarm), ...BACAAN.map((x) => level(barisTerakhir[x.st])));
+
+    b.className = "banner l" + l;
+    j.textContent = ["Aman", "Waspada", "Bahaya"][l];
+    r.textContent = daftar.length
+      ? daftar.join(", ") + " melewati ambang batas."
+      : "Semua pembacaan di bawah ambang batas.";
+  }
+
+  async function perbaruiLive() {
+    try {
+      const rows = await ambil({ jam: 0 });
+      tampil(rows.length ? rows[rows.length - 1] : null);
+      tampilGalat(null);
+    } catch (e) {
+      tampilGalat(e.message);
+    }
+  }
+
+  // ====== GRAFIK (tiga kanvas) ======
+  let rentangJam = 6;
+  const charts = {};
+
+  function buatGrafik(kunci) {
+    const g = GRAFIK[kunci];
+    Chart.defaults.color = cssVar("--muted");
+    Chart.defaults.borderColor = cssVar("--line");
+
+    const ds = g.seri.map((s) => ({
+      label: s.label, data: [], yAxisID: s.axis,
+      borderColor: cssVar(s.warna), backgroundColor: cssVar(s.warna),
+      borderWidth: 1.8, pointRadius: 0, tension: 0.25, spanGaps: true
+    }));
+    g.batas.forEach((b) => ds.push({
+      label: b.label, data: [], yAxisID: b.axis,
+      borderColor: cssVar("--bad"), borderDash: [6, 4], borderWidth: 1.2,
+      pointRadius: 0, fill: false
+    }));
+
+    const skala = {
+      x: { ticks: { maxTicksLimit: 7, maxRotation: 0 } },
+      y: { position: "left", title: { display: true, text: g.yLabel } }
+    };
+    if (g.y1Label) {
+      skala.y1 = { position: "right", title: { display: true, text: g.y1Label }, grid: { drawOnChartArea: false } };
+    }
+
+    charts[kunci] = new Chart($(g.id), {
+      type: "line",
+      data: { labels: [], datasets: ds },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
+        scales: skala
+      }
+    });
+  }
+
+  function bangunGrafik() {
+    Object.keys(GRAFIK).forEach((k) => {
+      if (charts[k]) charts[k].destroy();
+      buatGrafik(k);
+    });
+  }
+
+  function isiGrafik(kunci, labels, rows) {
+    const g = GRAFIK[kunci], c = charts[kunci];
+    c.data.labels = labels;
+    let i = 0;
+    g.seri.forEach((s) => { c.data.datasets[i++].data = rows.map((r) => r[s.key]); });
+    g.batas.forEach((b) => { c.data.datasets[i++].data = rows.map(() => b.nilai); });
+    c.update();
+  }
+
+  async function muatGrafik() {
+    try {
+      const rows = await ambil({ jam: rentangJam, maks: 300 });
+      const lab = rows.map((r) => {
+        const d = new Date(r.t);
+        const tgl = rentangJam > 24 ? pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + " " : "";
+        return tgl + pad(d.getHours()) + ":" + pad(d.getMinutes());
+      });
+      Object.keys(GRAFIK).forEach((k) => isiGrafik(k, lab, rows));
+      $("#kosong").hidden = rows.length > 0;
+      tampilGalat(null);
+    } catch (e) {
+      tampilGalat(e.message);
+    }
+  }
+
+  document.querySelectorAll(".seg button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      rentangJam = Number(btn.dataset.jam);
+      document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
+      muatGrafik();
+    });
+  });
+
+  // Warna grafik ikut berganti saat tema perangkat berubah
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    bangunGrafik();
+    muatGrafik();
+  });
+
+  // ====== TOMBOL ======
+  $("#btn-notif").addEventListener("click", aktifkanNotifikasi);
+  $("#notif-ack").addEventListener("click", akuiAlarm);
+
+  // ====== MULAI ======
+  bangunGrafik();
+  perbaruiBanner();
+
+  if (API_URL.startsWith("ISI_")) {
+    tampilGalat("isi dulu API_URL di bagian PENGATURAN pada file ini.");
+  } else {
+    perbaruiLive();
+    muatGrafik();
+    setInterval(perbaruiLive, LIVE_MS);
+    setInterval(muatGrafik, CHART_MS);
+  }
+  setInterval(perbaruiBanner, 1000);
+</script>
+</body>
+</html>

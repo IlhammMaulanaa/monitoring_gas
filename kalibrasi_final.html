@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kalibrasi Ro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #EDF0F2; --panel: #FFFFFF; --ink: #16202A; --muted: #566370; --line: #D3D9DF;
+    --ok: #1F7A6D; --warn: #B9770E; --bad: #C2362B;
+    --c1: #2F6FD0; --c2: #6FA3F0; --c3: #8A55C7; --c4: #B891E8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11171C; --panel: #182027; --ink: #E6ECF0; --muted: #93A1AD; --line: #2A343D;
+      --ok: #4FC3AE; --warn: #E0A23A; --bad: #F0675B;
+      --c1: #6FA3F0; --c2: #9CC3F7; --c3: #B891E8; --c4: #D2B6F2;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 400 1rem/1.5 "Public Sans", system-ui, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 20px 56px; }
+  h1, h2, .judul { font-family: "Bricolage Grotesque", "Public Sans", system-ui, sans-serif; }
+  h1 { margin: 6px 0 4px; font-size: 1.5rem; font-weight: 700; }
+  h2 { margin: 0 0 12px; font-size: 1.1rem; font-weight: 700; }
+  p { margin: 0; }
+  .kembali { color: var(--muted); font-size: .9rem; text-decoration: none; }
+  .kembali:hover { text-decoration: underline; }
+  .sub { color: var(--muted); font-size: .9rem; }
+  .kartu { background: var(--panel); border-radius: 8px; padding: 20px 22px; margin-top: 16px; }
+  .label { color: var(--muted); font-size: .85rem; }
+  .judul { font-size: 1.9rem; font-weight: 700; line-height: 1.15; margin: 4px 0; }
+  .track { height: 8px; border-radius: 4px; background: var(--line); margin: 14px 0 6px; overflow: hidden; }
+  .fill { height: 100%; width: 0; background: var(--c1); border-radius: 4px; }
+  .kecil { color: var(--muted); font-size: .85rem; }
+  .tombol { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  button { font: 600 .95rem "Public Sans", system-ui, sans-serif; padding: 10px 16px;
+           border-radius: 6px; border: 1px solid var(--ink); background: var(--ink);
+           color: var(--bg); cursor: pointer; }
+  button.ghost { background: transparent; color: var(--ink); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button:focus-visible { outline: 3px solid var(--c1); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  #pesan { margin-top: 12px; font-size: .9rem; }
+  .dua { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .baris { display: flex; justify-content: space-between; align-items: baseline;
+           padding: 8px 0; border-top: 1px solid var(--line); font-size: .95rem; }
+  .baris:first-child { border-top: 0; padding-top: 0; }
+  .nilai { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .chart-box { position: relative; height: 280px; }
+  ul { margin: 0; padding-left: 20px; }
+  li { margin: 4px 0; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  @media (max-width: 720px) { .dua { grid-template-columns: 1fr; } .judul { font-size: 1.5rem; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="kembali" href="index.html">← Kembali ke dashboard</a>
+  <h1>Kalibrasi Ro</h1>
+  <p class="sub">Mengukur Rs di udara bersih selama minimal 60 menit, memastikan nilainya stabil, lalu langsung menerapkannya ke perangkat.</p>
+
+  <section class="kartu" aria-live="polite">
+    <p class="label">Status</p>
+    <p class="judul" id="s-judul">Memuat…</p>
+    <p id="s-rinci" class="sub"></p>
+    <div class="track"><div class="fill" id="s-prog"></div></div>
+    <p class="kecil" id="s-waktu"></p>
+    <div class="tombol">
+      <button id="btn-mulai" type="button">Mulai kalibrasi 60 menit</button>
+      <button id="btn-batal" type="button" class="ghost" hidden>Batalkan</button>
+    </div>
+    <p id="pesan" role="status"></p>
+  </section>
+
+  <div class="dua">
+    <section class="kartu">
+      <h2>Rs saat ini</h2>
+      <div id="rs-list"><p class="kecil">Belum ada data.</p></div>
+    </section>
+    <section class="kartu">
+      <h2>Ro yang aktif</h2>
+      <div id="ro-list"></div>
+      <p class="kecil" id="ro-info" style="margin-top:10px"></p>
+    </section>
+  </div>
+
+  <section class="kartu">
+    <h2>Rs selama kalibrasi terakhir</h2>
+    <div class="chart-box"><canvas id="gRs" role="img" aria-label="Grafik Rs saat kalibrasi"></canvas></div>
+    <p class="kecil" style="margin-top:8px">Satu titik per menit. Garis yang sudah datar menandakan sensor stabil.</p>
+  </section>
+
+  <section class="kartu">
+    <h2>Panduan sebelum mulai</h2>
+    <ul>
+      <li>Letakkan sensor di udara bersih, di ruangan berventilasi.</li>
+      <li>Jauhkan dari sumber LPG, asap rokok, pembersih, alkohol, dan api.</li>
+      <li>Biarkan sensor menyala lama sebelum mulai. Jika terlalu baru, kalibrasi akan diperpanjang sampai menit ke-90 dan bisa gagal.</li>
+      <li>Jangan ubah posisi sensor atau mencabut daya selama kalibrasi berjalan.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+  // ====== PENGATURAN ======
+  const API_URL = "https://script.google.com/macros/s/AKfycbwG3cyl9Dujy-VgYu7cGId2_iYFQZfVGgVE-IFd0v55ENXgKXrgJ_sEAAVy99j3d5o3/exec";   // URL deployment /exec
+  const TOKEN = "123456789";          // sama dengan TOKEN di Code_v4.gs
+  const MUAT_MS = 5000;
+  const NAMA = ["MQ-2 sensor 1 (LPG)", "MQ-2 sensor 2 (LPG)", "MQ-7 sensor 1 (CO)", "MQ-7 sensor 2 (CO)"];
+  const NAMA_RO = ["MQ-2 sensor 1", "MQ-2 sensor 2", "MQ-7 sensor 1", "MQ-7 sensor 2"];
+
+  // ====== UTILITAS ======
+  const $ = (s) => document.querySelector(s);
+  const pad = (n) => String(n).padStart(2, "0");
+  const fmt = (v, d = 2) => (v === null || v === undefined) ? "–" : Number(v).toFixed(d);
+  const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  let cfg = null;
+  let rows = [];
+  let chart = null;
+
+  async function ambil(q) {
+    if (API_URL.startsWith("ISI_")) throw new Error("API_URL belum diisi di kalibrasi.html");
+    const r = await fetch(API_URL + "?" + q);
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.pesan || "Respons tidak valid");
+    return j;
+  }
+
+  async function kirim(body) {
+    const r = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },   // hindari preflight CORS
+      body: JSON.stringify({ token: TOKEN, ...body })
+    });
+    return r.json();
+  }
+
+  // cal_id berformat yyyyMMddHHmmss dalam WIB (UTC+7)
+  function waktuDariId(id) {
+    const m = String(id).match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+    if (!m) return null;
+    return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 7, +m[5], +m[6]));
+  }
+
+  function menitDari(tahap) {
+    const m = String(tahap || "").match(/menit (\d+)/);
+    return m ? +m[1] : null;
+  }
+
+  function pesanEl(t, kelas = "") {
+    const el = $("#pesan");
+    el.textContent = t;
+    el.className = kelas;
+  }
+
+  // ====== AMBIL DATA ======
+  async function muat() {
+    try {
+      cfg = await ambil("config=1");
+      rows = cfg.cal_id ? (await ambil("kalibrasi=1&cal_id=" + encodeURIComponent(cfg.cal_id))).rows : [];
+      render();
+    } catch (e) {
+      pesanEl("Tidak bisa mengambil data: " + e.message, "bad");
+    }
+  }
+
+  // ====== TAMPILAN ======
+  function render() {
+    const last = rows[rows.length - 1];
+    const menit = last ? menitDari(last.tahap) : null;
+    const mulai = cfg.cal_id ? waktuDariId(cfg.cal_id) : null;
+    const umurMenit = mulai ? (Date.now() - mulai.getTime()) / 60000 : 0;
+
+    let judul, rinci = "", prog = 0, kelas = "";
+
+    if (cfg.mode === "kalibrasi") {
+      $("#btn-mulai").disabled = true;
+      $("#btn-batal").hidden = false;
+
+      if (menit === null) {
+        if (umurMenit > 3) {
+          judul = "Perangkat belum merespons";
+          rinci = "Pastikan ESP32 menyala dan terhubung WiFi. Perintah diambil saat perangkat memeriksa server, sekitar setiap 30 detik.";
+          kelas = "warn";
+        } else {
+          judul = "Menunggu perangkat";
+          rinci = "Perintah sudah dikirim. ESP32 akan memulai dalam sekitar 30 detik.";
+        }
+      } else {
+        judul = "Berjalan: menit " + menit;
+        rinci = last.stabil === "YA"
+          ? "Sensor sudah stabil pada pengukuran terakhir. Kalibrasi akan selesai pada menit ke-" + cfg.durasi_menit + " jika tetap stabil."
+          : "Sensor belum stabil. Pengukuran berlanjut, dan batas waktu maksimum 90 menit.";
+        prog = Math.min((menit / 90) * 100, 100);
+      }
+    } else {
+      $("#btn-mulai").disabled = false;
+      $("#btn-batal").hidden = true;
+
+      if (cfg.status.startsWith("selesai")) {
+        judul = "Selesai";
+        rinci = "Ro baru sudah diterapkan ke perangkat dan langsung dipakai.";
+        kelas = "ok";
+        prog = 100;
+      } else if (cfg.status.startsWith("gagal")) {
+        judul = "Gagal";
+        rinci = cfg.status;
+        kelas = "bad";
+      } else if (cfg.status.startsWith("dibatalkan")) {
+        judul = "Dibatalkan";
+        rinci = "Kalibrasi dibatalkan. Ro sebelumnya tetap dipakai.";
+      } else {
+        judul = "Siap";
+        rinci = "Belum ada kalibrasi yang berjalan.";
+      }
+    }
+
+    $("#s-judul").textContent = judul;
+    $("#s-judul").className = "judul " + kelas;
+    $("#s-rinci").textContent = rinci;
+    $("#s-prog").style.width = prog + "%";
+    $("#s-waktu").textContent = cfg.cal_id && mulai
+      ? "Perintah terakhir: " + pad(mulai.getHours()) + ":" + pad(mulai.getMinutes()) + " (" + Math.round(umurMenit) + " menit lalu)"
+      : "";
+
+    renderRs(last);
+    renderRo();
+    gambarChart();
+  }
+
+  function renderRs(last) {
+    const el = $("#rs-list");
+    if (!last || !last.rs) {
+      el.innerHTML = '<p class="kecil">Belum ada data kalibrasi.</p>';
+      return;
+    }
+    el.innerHTML = NAMA.map((n, i) =>
+      '<div class="baris"><span>' + n + '</span><span class="nilai">' + fmt(last.rs[i], 2) + ' kΩ</span></div>'
+    ).join("") +
+    '<p class="kecil" style="margin-top:10px">CV maks ' + fmt(last.cv, 2) + "% · drift maks " + fmt(last.drift, 2) +
+    "% · stabil: " + (last.stabil || "–") + "</p>";
+  }
+
+  function renderRo() {
+    const el = $("#ro-list");
+    const ro = cfg.ro || [0, 0, 0, 0];
+    el.innerHTML = NAMA_RO.map((n, i) =>
+      '<div class="baris"><span>' + n + '</span><span class="nilai">' + (ro[i] ? fmt(ro[i], 4) : "–") + ' kΩ</span></div>'
+    ).join("");
+    $("#ro-info").textContent = cfg.ro_versi
+      ? "Versi " + cfg.ro_versi + (cfg.ro_selesai ? ", diterapkan " + cfg.ro_selesai.replace("T", " ").slice(0, 16) : "")
+      : "Belum ada kalibrasi otomatis. Ro dari kode yang dipakai.";
+  }
+
+  // ====== GRAFIK ======
+  function gambarChart() {
+    const pts = rows.filter((r) => menitDari(r.tahap) !== null);
+    const labels = pts.map((r) => "m" + menitDari(r.tahap));
+    const datasets = [0, 1, 2, 3].map((s) => ({
+      label: NAMA[s],
+      data: pts.map((r) => r.rs[s]),
+      borderColor: cssVar("--c" + (s + 1)),
+      backgroundColor: cssVar("--c" + (s + 1)),
+      borderWidth: 1.8, pointRadius: 2, tension: 0.25, spanGaps: true
+    }));
+
+    if (!chart) {
+      chart = new Chart($("#gRs"), {
+        type: "line",
+        data: { labels, datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
+          scales: { x: { title: { display: true, text: "Menit ke-" } },
+                    y: { title: { display: true, text: "Rs (kΩ)" } } }
+        }
+      });
+    } else {
+      chart.data.labels = labels;
+      chart.data.datasets.forEach((d, i) => { d.data = datasets[i].data; });
+      chart.update();
+    }
+  }
+
+  // Warna grafik ikut berganti saat tema perangkat berubah
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (chart) { chart.destroy(); chart = null; }
+    render();
+  });
+
+  // ====== TOMBOL ======
+  $("#btn-mulai").addEventListener("click", async () => {
+    if (!confirm("Pastikan sensor berada di udara bersih (ruangan berventilasi, jauh dari sumber gas dan asap). Mulai kalibrasi " + (cfg?.durasi_menit || 60) + " menit?")) return;
+    try {
+      const j = await kirim({ action: "mulai_kalibrasi" });
+      pesanEl(j.ok ? "Perintah dikirim. Menunggu perangkat." : j.pesan, j.ok ? "ok" : "bad");
+      await muat();
+    } catch (e) {
+      pesanEl("Gagal mengirim perintah: " + e.message, "bad");
+    }
+  });
+
+  $("#btn-batal").addEventListener("click", async () => {
+    if (!confirm("Batalkan kalibrasi yang sedang berjalan?")) return;
+    try {
+      const j = await kirim({ action: "batal_kalibrasi" });
+      pesanEl(j.ok ? "Kalibrasi dibatalkan." : j.pesan, j.ok ? "" : "bad");
+      await muat();
+    } catch (e) {
+      pesanEl("Gagal membatalkan: " + e.message, "bad");
+    }
+  });
+
+  // ====== MULAI ======
+  muat();
+  setInterval(muat, MUAT_MS);
+</script>
+</body>
+</html>
